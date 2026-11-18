@@ -1,0 +1,6 @@
+#!/bin/sh
+# Runs gflow without VS Code snap's GTK/GIO env leaks (they crash Chrome on launch).
+unset GSETTINGS_SCHEMA_DIR GTK_PATH GTK_EXE_PREFIX GTK_IM_MODULE_FILE GIO_MODULE_DIR LOCPATH GDK_PIXBUF_MODULE_FILE GDK_PIXBUF_MODULEDIR
+export XDG_DATA_DIRS="${XDG_DATA_DIRS_VSCODE_SNAP_ORIG:-/usr/local/share:/usr/share}"
+export GFLOW_CLI_TELEMETRY=0
+exec /home/xajeel/.local/bin/gflow "$@"
