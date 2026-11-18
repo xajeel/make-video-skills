@@ -16,6 +16,7 @@ Each part: 1920x1080, ~2:00, British narrator, 15 scenes. Scenes 1, 2, 3, 5 and 
   2. A decorative animal-frieze border band along the bottom.
 
 ## User rules (important)
+- **If a message has a question plus a task, answer the question and wait** before spending any credits.
 - Only the user's own words count as instructions. Be economical with credits, make no unrequested side work, and report briefly.
 - **Animation pattern:** animate **scenes 1, 2, 3, then 5, then 8** of each part with real Flow image-to-video. That's 5 clips, about 120 credits per part. Every other scene uses its **image with a very small slow zoom** (about 3%, alternating in and out). `assemble.py` does this automatically.
   - Never present zooming images as "the videos". Real clips must come from Flow.
@@ -54,7 +55,7 @@ doc-test/videos/<slug>/
    - Visually, the last scene of part N and the first scene of part N+1 should share setting and palette, so the dissolve between them feels natural.
    - Send the script to the user, then `set ... script_review`.
 2. **After the user approves the script, do the whole part in one go:**
-   - Generate the voiceover (step A), the images (step B) and the timing (step D).
+   - Generate the voiceover (step A) and the timing (step D), then the images (step B; usually the user's extension from image_prompts.txt).
    - Animate the pattern scenes 1, 2, 3, 5 and 8 in Flow (step C). The user expects the real clips in the first version they review.
    - Run `assemble.py parts/partNN` for the 1080p `partNN.mp4`.
    - Send the **full path** to the user and open it with `xdg-open`.
@@ -83,27 +84,46 @@ doc-test/videos/<slug>/
 
 Write years as words, e.g. "seven ninety-three", so the narrator says them correctly.
 
-### B. Images (gflow MCP, free)
-1. Run `gflow_generate_image` once per scene with these settings:
-   - `prompt`: `"<style>. Scene: <image>."`
-   - `aspect`: `"16:9"`
-   - `model`: `nano2`
-   - `project`: `<flow_project_id>`
-2. For the very first image of a new video, omit `project` and pass `project_name` instead. Then save the returned id with `project.py decide <p> flow_project_id <id>`.
-3. Each image is saved under `~/Downloads/gflow-cli/images/<date>/<media>_1.jpg`. Copy it to `parts/partNN/images/sceneNN.jpg`.
-4. Make a contact sheet and check that no image has a border or margin:
-   `ffmpeg -pattern_type glob -i 'images/scene*.jpg' -vf "scale=344:192,tile=5x3" -frames:v 1 contact.jpg`
+### B. Images (free) - the user usually makes them with their own browser extension
+Images are made from a **text prompt only** (style string + scene). No reference image is passed: gflow refuses reference images on this account, and the reference folders are only for checking results by eye.
+
+**Preferred (user's extension):** do the voiceover and `timing.py` first, so the scene times are known, then write `parts/partNN/image_prompts.txt` and give the user that path. The format is exactly one prompt per scene, then a blank line:
+```
+[0.00-0.06] <style>. Scene: <image>. IMPORTANT: do not write the time, any numbers, any label or any text anywhere in the image.
+
+[0.06-0.14] ...
+```
+- The times are `m.ss` from timing.json.
+- The user passes the file to the extension and sends back a folder, e.g. `~/Downloads/zapi-img-doc/`. It contains files named `NN_[mss-mss]_....webp`, sometimes `_1`/`_2` takes.
+- Review every image on labelled contact sheets. Look for a cloth edge or stripe, a margin, a border band, stray text, the wrong subject, or a style mismatch. Pick the best take and convert it to `parts/partNN/images/sceneNN.jpg`.
+- Regenerate only the bad ones with gflow (free), and tell the user which ones and why.
+
+**Fallback (gflow MCP):**
+1. Run `gflow_generate_image` with `prompt` `"<style>. Scene: <image>."`, `aspect` `"16:9"`, `model` `nano2` and `project` `<flow_project_id>`.
+2. For the very first image of a new video, omit `project` and pass `project_name`. Then run `project.py decide <p> flow_project_id <id>`.
+3. Copy the file from `~/Downloads/gflow-cli/images/<date>/<media>_1.jpg` to `parts/partNN/images/sceneNN.jpg`.
+
+**Contact sheet:**
+`ffmpeg -pattern_type glob -i 'images/scene*.jpg' -vf "scale=344:192,tile=5x3" -frames:v 1 contact.jpg`
 
 ### C. Animate the pattern scenes (Flow website, costs credits)
-gflow's `i2v` is **refused** on this account: Flow serves it the "agent-only composer" (gflow issue #799). The refusal costs nothing. Use the website instead:
-1. Run `scripts/launch_flow_chrome.sh "https://flow.google.com/project/<id>"`. This opens Flow, signed in, on CDP port 9333.
-2. Get each image's Flow title from the asset picker (`+` in the composer, then search) and put it in `flow_title` in scenes.json.
-3. Run `~/.local/share/uv/tools/gflow-cli/bin/python scripts/flow_animate.py --project <id> --scenes parts/partNN/scenes.json 1 2 3 5 8`.
-   - Default model is Omni 1.2 Flash, 24 credits per 8 s clip. Check the balance before and after with `gflow_get_credits`. It costs nothing.
-4. Get the clip titles from the Flow editor's top strip, then download each clip:
-   `scripts/flow_download.py --project <id> "<clip title>=parts/partNN/clips/sceneNN.mp4" ...`
-   This uses the Download → "Original size" menu.
-5. **Close the CDP Chrome window afterwards.** gflow MCP calls fail while it holds the profile.
+gflow's `i2v` is **refused** on this account: Flow serves it the "agent-only composer" (gflow issue #799). The refusal costs nothing. Use the website instead. Flow's layout changed in Nov 2026: there is no agent chat or Approve step any more.
+
+If the user also wants to make the clips themselves, write `parts/partNN/video_prompts.txt` in the same `[m.ss-m.ss] prompt` format. Use the "Animate this exact image..." text plus the scene's `motion`, one per animated scene, and list which `sceneNN.jpg` goes with each.
+
+1. Check credits with `gflow_get_credits`. It costs nothing.
+2. Run `scripts/launch_flow_chrome.sh "https://flow.google.com/project/<id>"`.
+3. Run `~/.local/share/uv/tools/gflow-cli/bin/python scripts/flow_animate.py --project <id> --part parts/partNN --upload --prefix <short>_pN_ 1 2 3 5 8`.
+   - `--upload` puts the scene images into the Flow project. It's needed when the user's extension made them.
+   - It switches the composer to **Video → Frames → x1**, so the clip starts from the exact image. That's Omni 1.2 Flash, 720p, 8 s, **24 credits per clip**.
+   - It picks each start frame, types the motion prompt, submits, and waits.
+   - **Never submit while the composer is on Image/Nano Banana.** That makes 2 images, not a video. They're free, but nothing gets animated.
+4. Run `~/.local/share/uv/tools/gflow-cli/bin/python scripts/flow_download.py --project <id> --part parts/partNN 1 2 3 5 8`.
+   - It downloads the newest videos (Original size) and files each one as `clips/sceneNN.mp4` by matching its first frame to the scene image.
+   - The match distance should be about 4 for the right scene and over 30 for the others.
+5. Check frames from each clip: same tapestry look, no text.
+6. **Close the CDP Chrome window** with CDP `Browser.close`. gflow MCP calls fail while it holds the profile.
+7. Check credits again. The drop should be exactly 24 × the number of clips.
 
 ### D. Timing and assembly
 1. `python3 scripts/timing.py parts/partNN`: snaps scene boundaries to paragraph pauses in the voiceover. Check the printed durations. Anything under 5 s or over 11 s is a bad snap, so fix it by hand in timing.json.
