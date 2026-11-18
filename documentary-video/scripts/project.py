@@ -19,7 +19,7 @@ import argparse, datetime, json, pathlib, re, shutil, sys
 SKILL = pathlib.Path(__file__).resolve().parent.parent
 STATUSES = ["planned", "script_review", "draft_review", "final_review", "final"]
 NEXT = {"planned": "write this part's scenes.json (continue from previous part's last line), then set script_review",
-        "script_review": "wait for the user's OK on the script; then voiceover + images + timing + assemble --draft, set draft_review",
+        "script_review": "wait for the user's OK on the script; then voiceover + images + timing + Flow clips (1,2,3,5,8) + final assemble, send the path, set final_review",
         "draft_review": "wait for the user's OK on the draft; then animate the pattern scenes in Flow, download clips, final assemble, set final_review",
         "final_review": "wait for the user's OK on the final part render; then set final",
         "final": "done - when all parts are final run join_parts.py"}

@@ -27,7 +27,7 @@ ap.add_argument("part_dir")
 ap.add_argument("--draft", action="store_true", help="fast 720p review render; ignores missing clips")
 ap.add_argument("--out")
 a = ap.parse_args()
-d = pathlib.Path(a.part_dir)
+d = pathlib.Path(a.part_dir).resolve()
 W, H = (1280, 720) if a.draft else (1920, 1080)
 out_name = a.out or ("draft.mp4" if a.draft else f"{d.name}.mp4")
 preset, crf = ("veryfast", 23) if a.draft else ("medium", 19)
@@ -36,6 +36,29 @@ t = json.load(open(d / "timing.json"))
 durs = list(t["durs"]); N = len(durs)
 durs[0] += LEAD; durs[-1] += TAIL
 seg = d / ("seg_draft" if a.draft else "seg"); seg.mkdir(exist_ok=True)
+
+def smooth_zoom(img_path, out, frames, zoom_in, crf, preset):
+    """Render a still with a slow centred zoom using sub-pixel crop boxes (no jitter)."""
+    from PIL import Image
+    src = Image.open(img_path).convert("RGB")
+    iw, ih = src.size
+    # crop the source to the output aspect first
+    ar = W / H
+    if iw / ih > ar: cw, ch = ih * ar, ih
+    else: cw, ch = iw, iw / ar
+    cx, cy = iw / 2, ih / 2
+    p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+                          "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-crf", str(crf), "-preset", preset,
+                          "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE)
+    for f in range(frames):
+        t = f / max(frames - 1, 1)
+        t = t * t * (3 - 2 * t)                      # ease in/out
+        z = 1 + ZOOM * (t if zoom_in else 1 - t)
+        w, h = cw / z, ch / z
+        box = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+        p.stdin.write(src.transform((W, H), Image.Transform.EXTENT, box, resample=Image.Resampling.BICUBIC).tobytes())
+    p.stdin.close(); p.wait()
+    if p.returncode: raise SystemExit(f"ffmpeg failed for {img_path}")
 
 def probe(f):
     return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(f)],
@@ -52,13 +75,12 @@ for i, dur in enumerate(durs):
                "-c:v", "libx264", "-crf", str(crf), "-preset", preset, str(out)]
         kind = "flow clip"
     else:
-        z = f"1+{ZOOM}*on/{frames}" if still_count % 2 == 0 else f"{1 + ZOOM}-{ZOOM}*on/{frames}"
+        # Smooth sub-pixel zoom rendered with Pillow (ffmpeg zoompan snaps to whole pixels -> visible shake).
+        zoom_in = still_count % 2 == 0
         still_count += 1
-        vf = (f"scale={W*2}:{H*2}:flags=lanczos,zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-              f":d={frames}:s={W}x{H}:fps={FPS},format=yuv420p")
-        cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(img), "-vf", vf, "-frames:v", str(frames),
-               "-c:v", "libx264", "-crf", str(crf), "-preset", preset, str(out)]
-        kind = "image + subtle zoom"
+        smooth_zoom(img, out, frames, zoom_in, crf, preset)
+        print(f"scene {n}: image + subtle zoom {L:.2f}s", flush=True)
+        continue
     subprocess.run(cmd, check=True)
     print(f"scene {n}: {kind} {L:.2f}s", flush=True)
 

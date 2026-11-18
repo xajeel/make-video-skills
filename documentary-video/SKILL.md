@@ -53,14 +53,14 @@ doc-test/videos/<slug>/
    - The first scene must pick up from the previous part's closing line. The last line hands off to the next part.
    - Visually, the last scene of part N and the first scene of part N+1 should share setting and palette, so the dissolve between them feels natural.
    - Send the script to the user, then `set ... script_review`.
-2. **After the user approves the script:**
+2. **After the user approves the script, do the whole part in one go:**
    - Generate the voiceover (step A), the images (step B) and the timing (step D).
-   - Run `assemble.py parts/partNN --draft`. This makes a fast 720p draft with no clips and no credits spent.
-   - Send `draft.mp4` to the user, then `set ... draft_review`.
-3. **After the user approves the draft:**
-   - Animate the pattern scenes (step C) and record the credits.
-   - Run `assemble.py parts/partNN` for the final 1080p `partNN.mp4`.
-   - Send it to the user, then `set ... final_review --credits 120`.
+   - Animate the pattern scenes 1, 2, 3, 5 and 8 in Flow (step C). The user expects the real clips in the first version they review.
+   - Run `assemble.py parts/partNN` for the 1080p `partNN.mp4`.
+   - Send the **full path** to the user and open it with `xdg-open`.
+   - Then `set ... final_review --credits <spent>`.
+   - Never send a draft made only of zooming images as "the video". `--draft` is only for a quick private check.
+3. *(The `draft_review` status is optional. Skip it unless the user asks for a cheap preview first.)*
 4. **After the user approves the final render:** `set ... final`.
 5. **When all parts are final:** run `python3 scripts/join_parts.py <project>`, which writes `final/<slug>_full.mp4`. Then spot-check each seam (sound and picture).
 
