@@ -11,5 +11,5 @@ fi
 unset GSETTINGS_SCHEMA_DIR GTK_PATH GTK_EXE_PREFIX GTK_IM_MODULE_FILE GIO_MODULE_DIR LOCPATH GDK_PIXBUF_MODULE_FILE GDK_PIXBUF_MODULEDIR
 export XDG_DATA_DIRS="${XDG_DATA_DIRS_VSCODE_SNAP_ORIG:-/usr/local/share:/usr/share}"
 nohup /opt/google/chrome/chrome --user-data-dir="$PROFILE" --remote-debugging-port=9333 \
-  --remote-allow-origins=http://127.0.0.1 --no-first-run --window-size=1440,900 "$URL" >/dev/null 2>&1 &
+  --remote-allow-origins=http://127.0.0.1 --password-store=basic --use-mock-keychain --no-first-run --window-size=1440,900 "$URL" >/dev/null 2>&1 &
 sleep 6; curl -s http://127.0.0.1:9333/json/version | grep -q Browser && echo "Flow Chrome ready on :9333"

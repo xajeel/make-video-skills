@@ -116,6 +116,8 @@ Keep it under 60 characters, put the hook first and include the year. Example: "
 ## Environment notes / gotchas
 - **gflow MCP:** registered through `~/.local/bin/gflow-clean` (copy in `scripts/gflow-clean`). The wrapper strips VS Code snap GTK/GIO environment variables. Without it, Chrome crashes on launch, which gflow misreports as "Profile locked".
 - **Account:** the gflow profile is `sajeel135`. Image generation is free; videos cost credits.
+- **Chrome must use `--password-store=basic`:** any Chrome opened on the gflow profile needs `--password-store=basic`, which `launch_flow_chrome.sh` now sets. Without it, Chrome re-encrypts the cookies with the system keyring. gflow can't read them and lands on `flow.google.com/about` (exit 31), and the user has to sign in again.
+  - When Flow shows `/about` but Google is signed in, open the CDP window, press "Create with Google Flow", let the user finish any sign-in, then close it cleanly with CDP `Browser.close`.
 - **Stale locks:** remove stale `Singleton*` lock files in `~/.local/share/gflow-cli/profile_sajeel135/`, but only when no Chrome is using that profile (`launch_flow_chrome.sh` does this).
 - **Stopping processes:** don't run `pkill -f <name>` from a shell whose own command line contains that name, because it kills itself. Kill by PID instead.
 - **Long renders:** a final part render takes a few minutes. Run long renders in the background if the tool call might time out.

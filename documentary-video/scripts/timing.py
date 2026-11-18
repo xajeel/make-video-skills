@@ -22,7 +22,7 @@ scenes = json.load(open(d / "scenes.json"))["scenes"]
 words = [len(s["narration"].split()) for s in scenes]
 W = sum(words)
 speech_start = sil[0][1] if sil and sil[0][0] < 0.1 else 0.0
-long_pauses = [((a + b) / 2, b - a) for a, b in sil if b - a >= 0.55 and a > 0.1]
+long_pauses = [((a + b) / 2, b - a) for a, b in sil if b - a >= 0.5 and a > 0.1]
 print("long pauses (mid, len):", " ".join(f"{m:.2f}({l:.2f})" for m, l in long_pauses))
 cuts, acc = [0.0], 0
 for w in words[:-1]:
