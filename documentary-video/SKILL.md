@@ -79,8 +79,10 @@ doc-test/videos/<slug>/
    - `model_id`: the project's `tts_model`, `eleven_v4`
    - `voice_id`: the project's `voice_id`, `QngvLQR8bsLR5bzoa6Vv` ("Michael Dan – British Documentary Narrator")
    - `prompt`: the part's narrations joined with blank lines between them
-2. Poll `creative_get_flow_run_status` until it finishes. It returns 2 takes, about 1650 ElevenLabs credits (≈$0.30) each.
-3. Download take 1 with `curl` from `content_url` to `parts/partNN/voiceover.mp3`.
+   - `generations_count`: **1**. ElevenLabs charges 1 credit per character per take (a 2-minute part is about 1,600 characters, so about 1,600 credits). The default of 2 takes doubles the cost, and the user does not want that.
+2. Poll `creative_get_flow_run_status` until it finishes. The cost is about 1,650 ElevenLabs credits (≈$0.30) for one take. Tell the user the cost before generating.
+3. Download the take with `curl` from `content_url` to `parts/partNN/voiceover.mp3`.
+4. **Check the voice before using it.** Transcribe it locally with faster-whisper (free; the venv is `~/myrepo/videostst/.venv`, model `medium.en`) and compare it with the script. Flag missing or repeated words and words with low confidence. If one sentence is bad, re-generate only that sentence (cheap) and splice it in at a pause.
 
 Write years as words, e.g. "seven ninety-three", so the narrator says them correctly.
 
