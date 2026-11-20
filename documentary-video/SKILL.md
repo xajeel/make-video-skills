@@ -28,7 +28,6 @@ Each part: 1920x1080, ~2:00, British narrator, 15 scenes. A few scenes are real-
 
   - An 8-minute (4-part) video costs 192 Flow credits in total. A single-part (short) video uses the first-part pattern.
   - `python3 scripts/project.py clips <project> <n>` prints the scenes for part n. Use that list everywhere below instead of typing scene numbers.
-  - **No 3D camera move / depth parallax.** The user tested it (2026-11-20) and rejected it: "it's not good in video". Don't suggest or add it again.
   - Every other scene uses its **image with a very small slow zoom** (about 3%, alternating in and out). `assemble.py` does this automatically, and uses `clips/sceneNN.mp4` wherever it exists.
   - Never present zooming images as "the videos". Real clips must come from Flow.
   - Say the cost (24 credits per clip) before submitting. If the user picks a different set of scenes, record it with `project.py decide <project> animation_pattern '{"first":[...],"middle":[...],"last":[...]}'`.
