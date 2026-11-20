@@ -7,9 +7,6 @@ Expects in <part_dir>: scenes.json, timing.json, voiceover.mp3, images/sceneNN.j
 and clips/sceneNN.mp4 for the scenes animated in Flow (final render).
 
 - Animated scenes: the Flow clip, speed-fitted to that scene's narration.
-- ~30% of each part's scenes (picked at random among the non-Flow scenes, saved in motion3d.json so
-  re-renders keep the same picks; edit or delete that file to change them): a free 3D camera move
-  (parallax.py: depth map + push-in/slide with parallax). Needs setup_3d.sh once; falls back to zoom if missing.
 - Other scenes: the image with a VERY subtle slow zoom (~3%), alternating in/out.
   Keep it barely noticeable - the user wants "very little", not a Ken Burns slideshow.
 - 0.5 s dissolves between scenes.
@@ -17,24 +14,18 @@ and clips/sceneNN.mp4 for the scenes animated in Flow (final render).
   LEAD s of picture before the first word, TAIL s of quiet picture after the last word.
 - Voiceover is loudness-normalised (-16 LUFS) to 48 kHz stereo so every part sounds the same.
 """
-import argparse, json, os, random, subprocess, pathlib
+import argparse, json, subprocess, pathlib
 
 ZOOM = 0.03   # total zoom change over a still scene (0.03 = 3%)
 LEAD = 0.4    # seconds before the first word
 TAIL = 1.2    # seconds of quiet picture after the last word (join_parts crossfades inside this)
 X = 0.5       # dissolve between scenes
 FPS = 30
-SHARE_3D = 0.30   # share of each part's scenes that get the 3D camera move (user rule, 2026-11-20)
-HERE = pathlib.Path(__file__).resolve().parent
-DOCVID = pathlib.Path(os.environ.get("DOCVID_HOME", pathlib.Path.home() / ".local/share/documentary-video"))
-PY3D, MODEL3D = DOCVID / "depthenv/bin/python", DOCVID / "models/depth_anything_v2_small.onnx"
-MOVES_3D = ["push_slide", "push", "slide_right", "slide_left"]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("part_dir")
 ap.add_argument("--draft", action="store_true", help="fast 720p review render; ignores missing clips")
 ap.add_argument("--out")
-ap.add_argument("--no-3d", action="store_true", help="plain zoom on every still (no 3D camera moves)")
 a = ap.parse_args()
 d = pathlib.Path(a.part_dir).resolve()
 W, H = (1280, 720) if a.draft else (1920, 1080)
@@ -69,38 +60,10 @@ def smooth_zoom(img_path, out, frames, zoom_in, crf, preset):
     p.stdin.close(); p.wait()
     if p.returncode: raise SystemExit(f"ffmpeg failed for {img_path}")
 
-def pattern_scenes(part_dir):
-    """Scenes the project animates in Flow for this part (from ../../project.json), so draft renders
-    without clips still keep those scenes free of 3D moves."""
-    pj = part_dir.parent.parent / "project.json"
-    if not pj.exists() or not part_dir.name.startswith("part"): return set()
-    p = json.load(open(pj)); pat = p["decisions"].get("animation_pattern", [])
-    if isinstance(pat, list): return set(pat)
-    n, total = int(part_dir.name[4:]), len(p["parts"])
-    return set(pat.get("first" if n == 1 else "last" if n == total else "middle", []))
-
-def plan_3d(part_dir, N):
-    """{scene: move} for ~SHARE_3D of the scenes, random among stills; saved so re-renders are stable."""
-    f = part_dir / "motion3d.json"
-    if f.exists(): return {int(k): v for k, v in json.load(open(f))["scenes"].items()}
-    skip = pattern_scenes(part_dir) | {n for n in range(1, N + 1) if (part_dir / f"clips/scene{n:02d}.mp4").exists()}
-    cand = [n for n in range(1, N + 1) if n not in skip]
-    rng = random.Random(f"{part_dir.parent.parent.name}/{part_dir.name}")
-    picks = sorted(rng.sample(cand, min(len(cand), int(N * SHARE_3D + 0.5))))
-    moves = MOVES_3D[:]; rng.shuffle(moves)
-    plan = {n: moves[i % len(moves)] for i, n in enumerate(picks)}
-    json.dump({"note": "3D camera move scenes (assemble.py). Edit or delete to change.", "scenes": plan}, open(f, "w"), indent=1)
-    return plan
-
 def probe(f):
     return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(f)],
                                 capture_output=True, text=True).stdout)
 
-have_3d = PY3D.exists() and MODEL3D.exists()
-plan = {} if a.no_3d else plan_3d(d, N)
-if plan and not have_3d:
-    print("WARNING: 3D move not set up (run setup_3d.sh) - using plain zoom for", sorted(plan)); plan = {}
-if plan: print("3D camera move on scenes:", ", ".join(f"{n} ({m})" for n, m in plan.items()), flush=True)
 still_count = 0
 for i, dur in enumerate(durs):
     n = i + 1; L = dur + (X if n < N else 0)
@@ -111,12 +74,6 @@ for i, dur in enumerate(durs):
         cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(clip), "-vf", vf, "-frames:v", str(frames), "-an",
                "-c:v", "libx264", "-crf", str(crf), "-preset", preset, str(out)]
         kind = "flow clip"
-    elif n in plan:
-        subprocess.run([str(PY3D), "-I", str(HERE / "parallax.py"), str(img), str(out), "--frames", str(frames),
-                        "--move", plan[n], "--size", f"{W}x{H}", "--fps", str(FPS), "--crf", str(crf), "--preset", preset],
-                       check=True, stdout=subprocess.DEVNULL)
-        print(f"scene {n}: image + 3D camera move ({plan[n]}) {L:.2f}s", flush=True)
-        continue
     else:
         # Smooth sub-pixel zoom rendered with Pillow (ffmpeg zoompan snaps to whole pixels -> visible shake).
         zoom_in = still_count % 2 == 0
