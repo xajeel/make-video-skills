@@ -26,7 +26,7 @@ NEXT = {"planned": "write this part's scenes.json (continue from previous part's
         "final": "done - when all parts are final run join_parts.py"}
 
 # Default Flow clip pattern (user rule, 2026-11-20): first part 5 clips, middle parts 2 clips, last part none.
-DEFAULT_PATTERN = {"first": [1, 2, 4, 6, 8], "middle": [1, 4], "last": []}
+DEFAULT_PATTERN = {"first": [1, 2, 4, 6], "middle": [1, 4], "last": []}
 VOICE_SETTINGS = {"stability": 0.8, "similarity": 0.9}   # eleven_v4: steady, consistent narrator across parts
 
 def clips_for(p, n):
