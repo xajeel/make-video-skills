@@ -4,7 +4,7 @@ gflow's own i2v is refused on this account (Flow "agent-only composer"), so this
 composer in the Chrome opened by launch_flow_chrome.sh (CDP port 9333).
 
 Usage (run with ~/.local/share/uv/tools/gflow-cli/bin/python):
-  flow_animate.py --project <flow_project_id> --part parts/partNN [--upload] [--prefix rh_p2_] 1 2 3 5 8
+  flow_animate.py --project <flow_project_id> --part parts/partNN [--upload] [--prefix rh_p2_] 1 2 4 6 8   # scenes from: project.py clips <project> N
 
 What it does (Flow UI as of Nov 2026):
   1. --upload: uploads parts/partNN/images/sceneNN.jpg as "<prefix>sceneNN.jpg" (top "+" -> Upload).

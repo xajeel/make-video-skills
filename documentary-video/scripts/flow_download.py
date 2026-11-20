@@ -4,7 +4,7 @@ Flow gives the clips near-identical titles ("Animate embroidered tapestry int...
 downloads the N newest videos and matches each clip's first frame to parts/partNN/images/sceneNN.jpg.
 
 Usage (run with ~/.local/share/uv/tools/gflow-cli/bin/python; free, no credits):
-  flow_download.py --project <flow_project_id> --part parts/partNN 1 2 3 5 8
+  flow_download.py --project <flow_project_id> --part parts/partNN 1 2 4 6 8   # scenes from: project.py clips <project> N
 Writes parts/partNN/clips/sceneNN.mp4 and prints the match distance (small = sure, ~4; others ~35+).
 """
 import argparse, os, subprocess, tempfile, time

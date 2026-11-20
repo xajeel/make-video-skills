@@ -6,6 +6,7 @@
   python3 project.py set <project_dir> <part_n> <status> [--note "..."] [--credits 120]
   python3 project.py decide <project_dir> <key> <value> [--note "why"]
   python3 project.py log <project_dir> "free-text note"
+  python3 project.py clips <project_dir> <part_n>      # prints the scenes to animate in Flow for that part
 
 Part status flow (one part = ~2 min = 15 scenes):
   planned -> script_review -> draft_review -> final_review -> final
@@ -19,10 +20,23 @@ import argparse, datetime, json, pathlib, re, shutil, sys
 SKILL = pathlib.Path(__file__).resolve().parent.parent
 STATUSES = ["planned", "script_review", "draft_review", "final_review", "final"]
 NEXT = {"planned": "write this part's scenes.json (continue from previous part's last line), then set script_review",
-        "script_review": "wait for the user's OK on the script; then voiceover + images + timing + Flow clips (1,2,3,5,8) + final assemble, send the path, set final_review",
+        "script_review": "wait for the user's OK on the script; then voiceover + images + timing + Flow clips ({clips}) + final assemble, send the path, set final_review",
         "draft_review": "wait for the user's OK on the draft; then animate the pattern scenes in Flow, download clips, final assemble, set final_review",
         "final_review": "wait for the user's OK on the final part render; then set final",
         "final": "done - when all parts are final run join_parts.py"}
+
+# Default Flow clip pattern (user rule, 2026-11-20): first part 5 clips, middle parts 2 clips, last part none.
+DEFAULT_PATTERN = {"first": [1, 2, 4, 6, 8], "middle": [1, 4], "last": []}
+VOICE_SETTINGS = {"stability": 0.8, "similarity": 0.9}   # eleven_v4: steady, consistent narrator across parts
+
+def clips_for(p, n):
+    """Scenes to animate in part n. animation_pattern may be the old flat list (same for every part)
+    or a dict {first, middle, last}; a single-part video uses "first"."""
+    pat = p["decisions"].get("animation_pattern", DEFAULT_PATTERN)
+    if isinstance(pat, list): return pat
+    total = len(p["parts"])
+    key = "first" if n == 1 else "last" if n == total else "middle"
+    return pat.get(key, [])
 
 def now(): return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 def load(d): return json.load(open(d / "project.json"))
@@ -37,6 +51,7 @@ a3 = sub.add_parser("set"); a3.add_argument("dir"); a3.add_argument("part", type
 a3.add_argument("--note", default=""); a3.add_argument("--credits", type=int, default=0)
 a4 = sub.add_parser("decide"); a4.add_argument("dir"); a4.add_argument("key"); a4.add_argument("value"); a4.add_argument("--note", default="")
 a5 = sub.add_parser("log"); a5.add_argument("dir"); a5.add_argument("text")
+a6 = sub.add_parser("clips"); a6.add_argument("dir"); a6.add_argument("part", type=int)
 a = ap.parse_args()
 
 if a.cmd == "new":
@@ -48,7 +63,8 @@ if a.cmd == "new":
     p = {"title": a.title, "slug": slug, "created": now(), "target_minutes": a.minutes, "part_minutes": 2,
          "decisions": {"voice_id": "QngvLQR8bsLR5bzoa6Vv", "voice_name": "Michael Dan - British Documentary Narrator",
                        "tts_model": "eleven_v4", "style": tmpl["style"], "image_model": "nano2", "aspect": "16:9",
-                       "flow_project_id": None, "gflow_profile": "sajeel135", "animation_pattern": [1, 2, 3, 5, 8],
+                       "flow_project_id": None, "gflow_profile": "sajeel135", "animation_pattern": DEFAULT_PATTERN,
+                       "voice_settings": VOICE_SETTINGS, "eleven_flow_id": None, "eleven_tts_node_id": None,
                        "flow_video_model": "Omni 1.2 Flash (default, 24 credits/clip)", "zoom": 0.03, "scenes_per_part": 15},
          "parts": [{"n": i + 1, "status": "planned", "summary": "", "credits": 0, "notes": []} for i in range(n_parts)],
          "credits_total": 0}
@@ -67,9 +83,13 @@ elif a.cmd == "status":
     print(f"{p['title']}  ({p['target_minutes']} min, {len(p['parts'])} parts)  credits spent: {p['credits_total']}")
     print("decisions:", json.dumps({k: v for k, v in p["decisions"].items() if k != "style"}, ensure_ascii=False))
     for part in p["parts"]:
-        print(f"  part {part['n']:02d}: {part['status']:<13} {part['summary'][:60]}  credits={part['credits']}")
+        c = clips_for(p, part["n"])
+        print(f"  part {part['n']:02d}: {part['status']:<13} {part['summary'][:50]}  clips={' '.join(map(str, c)) or 'none'}  credits={part['credits']}")
     cur = next((x for x in p["parts"] if x["status"] != "final"), None)
-    print("NEXT:", f"part {cur['n']:02d} - {NEXT[cur['status']]}" if cur else NEXT["final"])
+    if cur:
+        c = " ".join(map(str, clips_for(p, cur["n"]))) or "none - images only"
+        print("NEXT:", f"part {cur['n']:02d} - {NEXT[cur['status']].format(clips=c)}")
+    else: print("NEXT:", NEXT["final"])
 
 elif a.cmd == "set":
     d = pathlib.Path(a.dir); p = load(d); part = p["parts"][a.part - 1]
@@ -83,6 +103,9 @@ elif a.cmd == "decide":
     try: val = json.loads(a.value)
     except Exception: val = a.value
     p["decisions"][a.key] = val; save(d, p); log(d, f"decision: {a.key} = {a.value}" + (f" ({a.note})" if a.note else "")); print("ok")
+
+elif a.cmd == "clips":
+    d = pathlib.Path(a.dir); print(" ".join(map(str, clips_for(load(d), a.part))))
 
 elif a.cmd == "log":
     d = pathlib.Path(a.dir); log(d, a.text); print("ok")
