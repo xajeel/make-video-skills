@@ -33,10 +33,20 @@ with sync_playwright() as p:
     for i in range(len(a.numbers)):
         if i:
             page.keyboard.press("ArrowRight"); time.sleep(4)
+        # Flow (late Nov 2026) often fetches the file from a signed flow-content.google URL without
+        # firing a browser download event, so catch that URL and fetch it ourselves (it needs no cookies).
+        urls = []
+        grab = lambda r: urls.append(r.url) if "flow-content.google/video/" in r.url else None
+        page.on("response", grab)
         page.locator('button[aria-label*="ownload" i]').first.click(); time.sleep(2)
-        with page.expect_download(timeout=120000) as d:
-            page.get_by_text("Original size").first.click()
-        d.value.save_as(f"{tmp}/v{i}.mp4"); time.sleep(2)
+        try:
+            with page.expect_download(timeout=30000) as d:
+                page.get_by_text("Original size").first.click()
+            d.value.save_as(f"{tmp}/v{i}.mp4")
+        except Exception:
+            if not urls: raise SystemExit(f"video {i}: no download and no flow-content URL seen")
+            subprocess.run(["curl", "-sS", "--max-time", "300", "-o", f"{tmp}/v{i}.mp4", urls[-1]], check=True)
+        page.remove_listener("response", grab); time.sleep(2)
 
 imgs = {n: gray(f"{part}/images/scene{n:02d}.jpg") for n in a.numbers}
 os.makedirs(f"{part}/clips", exist_ok=True)

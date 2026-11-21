@@ -154,6 +154,7 @@ If the user also wants to make the clips themselves, write `parts/partNN/video_p
    - **Never submit while the composer is on Image/Nano Banana.** That makes 2 images, not a video. They're free, but nothing gets animated.
 4. Run `~/.local/share/uv/tools/gflow-cli/bin/python scripts/flow_download.py --project <id> --part parts/partNN $(python3 scripts/project.py clips <project> N)`.
    - It downloads the newest videos (Original size) and files each one as `clips/sceneNN.mp4` by matching its first frame to the scene image.
+   - Since late Nov 2026 Flow often fetches the file from a signed `flow-content.google/video/...` URL without a browser download event. The script catches that URL and fetches it with curl (no cookies needed). gflow's `gflow_download_media` can't fetch clips made on the website (no local record).
    - The match distance should be about 4 for the right scene and over 30 for the others.
 5. Check frames from each clip: same tapestry look, no text.
 6. **Close the CDP Chrome window** with CDP `Browser.close`. gflow MCP calls fail while it holds the profile.
