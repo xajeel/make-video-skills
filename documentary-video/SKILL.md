@@ -6,7 +6,7 @@ description: Make YouTube history documentaries in a hand-embroidered medieval t
 # Documentary video skill (tapestry style)
 
 Proven on "793: The Raid That Started the Viking Age" (doc-test/lindisfarne_793_documentary.mp4).
-Each part: 1920x1080, ~2:00, British narrator, 15 scenes. A few scenes are real-motion Flow clips (see the animation pattern below); the rest are images with a very slight slow zoom.
+Each part: 1920x1080, ~2:00, British narrator, a varying number of scenes (about 11–19). Several scenes are real-motion Flow clips and the rest are images with varied camera moves and tapestry-style overlays (see **Monetisation-safe variety** below).
 
 **Look at the references first:**
 - `references/style/`: the user's target look. Muted cream, slate blue, moss green, ochre and rust stitching, swirling stitched clouds and waves.
@@ -18,19 +18,36 @@ Each part: 1920x1080, ~2:00, British narrator, 15 scenes. A few scenes are real-
 ## User rules (important)
 - **If a message has a question plus a task, answer the question and wait** before spending any credits.
 - Only the user's own words count as instructions. Be economical with credits, make no unrequested side work, and report briefly.
-- **Animation pattern (user rule, 2026-11-20).** Real Flow image-to-video clips go only on these scenes:
-
-  | Part | Scenes animated | Clips | Credits |
-  |---|---|---|---|
-  | First part | 1, 2, 4, 6 | 4 | 96 |
-  | Every middle part (2nd, 3rd) | 1, 4 | 2 | 48 |
-  | Last part | none, images only | 0 | 0 |
-
-  - An 8-minute (4-part) video costs 192 Flow credits in total. A single-part (short) video uses the first-part pattern.
-  - `python3 scripts/project.py clips <project> <n>` prints the scenes for part n. Use that list everywhere below instead of typing scene numbers.
-  - Every other scene uses its **image with a very small slow zoom** (about 3%, alternating in and out). `assemble.py` does this automatically, and uses `clips/sceneNN.mp4` wherever it exists.
-  - Never present zooming images as "the videos". Real clips must come from Flow.
-  - Say the cost (24 credits per clip) before submitting. If the user picks a different set of scenes, record it with `project.py decide <project> animation_pattern '{"first":[...],"middle":[...],"last":[...]}'`.
+- **Monetisation-safe variety (user rule, 2026-11-26). This replaces the old fixed 1,2,4,6 / 1,4 / none clip pattern.**
+  - **Why:** YouTube's inauthentic-content policy demonetises channels whose videos "feel interchangeable", look "produced using a template", or are "image slideshows" or AI content without the creator's own insight. Every video must look and read as individually made.
+  - **Fixed, never change:** the narrator voice and the tapestry design. Everything on screen, evidence included, stays in tapestry style.
+  1. **Script:**
+     - Pick the structure for the topic: investigation and verdict, a single event, a season or day walkthrough, legend vs record, countdown, rise and fall.
+     - Never reuse an opening or closing line from an earlier video.
+     - End on a specific, sourced verdict or insight, never a generic recap.
+  2. **Scene count and length vary with the beats.** Use about 11–19 scenes per part, not a fixed 15. Make fast beats about 3–5 s and calm beats up to about 12 s, never the same rhythm every part.
+  3. **More real Flow clips, on action beats.**
+     - Mark each one in scenes.json with `"animate": true`. Put clips where something moves (ships landing, an arrow fired, snow falling, a crowd), not on fixed scene numbers.
+     - Budget: **10–14 clips per 8-minute video**, a different count in every part, and the last part gets clips too.
+     - `python3 scripts/project.py clips <project> <n>` prints the marked scenes. Use that list everywhere below.
+     - Say the cost (24 credits per clip) before submitting. Never present zooming images as "the videos": real clips must come from Flow.
+  4. **Vary the free motion** on every still, with a per-scene `shot` in scenes.json:
+     - `zoom_in` / `zoom_out` (3%)
+     - `pan_left` / `pan_right` / `pan_up` / `pan_down` (for wide panels)
+     - `push` with `focus: [x, y]` (12% into a detail)
+     - `hold`
+     - Don't run the same move on 3 scenes in a row.
+  5. **Vary transitions** with `transition`: `dissolve` (default), `cut` (fast beats, action) or `slow` (time passing, endings).
+  6. **Evidence in tapestry style** with `overlay`. Use at least 2–3 per video:
+     - `{"type":"quote","text":"<real line from the source>","cite":"<Source, date>"}`: cream text on a soft dark shade with an ochre citation. The narrator reads the line.
+     - `{"type":"caption","text":"BARNSDALE, YORKSHIRE"}`: place or date caption with a rust underline.
+     - `{"type":"route","points":[[x,y],...]}`: a rust thread stitches itself along a route. Use it on a stitched map image, stills only.
+     - Also prompt stitched documents (an embroidered charter, ballad sheet or ledger whenever a source is cited), stitched maps, stitched timelines, and split frames (legend left, record right).
+  7. **Packaging:** different thumbnail concepts per video, sources in every description, the AI disclosure line, and one to two uploads a week, never a flood of look-alikes.
+  - **Check before sending each part:**
+    - The scene count and clip count differ from the last part.
+    - No move repeats 3 times in a row.
+    - The part has at least one overlay or evidence beat (except very short parts).
 - **Image prompts mode.** If the user says they need prompts for the images (e.g. "give me the prompts"), the user makes the images with their extension **for every part of the whole video**, not just that part. Record it once with `project.py decide <project> image_source extension`. From then on, for each part: voiceover → timing → write `image_prompts.txt` (step B) → wait for the user's image folder → review and regenerate only the bad ones. Don't generate the images yourself for that video unless the user asks.
 - **One Flow project per video.** Create it once and always pass its id. Never use `--project-name` per call, because that creates a new project every time.
 - The user often interrupts. After an interruption, check what is still running or charged before doing anything else.
@@ -45,7 +62,7 @@ All state lives in the project folder, so a fresh session can always continue.
 **Starting a session on an existing video:**
 1. Read `<project>/PROGRESS.md`.
 2. Run `python3 scripts/project.py status <project>`. It prints the decisions, each part's status and **NEXT**, the action to take.
-3. Continue from NEXT. Never redo finished parts, and never change a decision (voice, style, Flow project, pattern) without the user's OK.
+3. Continue from NEXT. Never redo finished parts, and never change a decision (voice, style, Flow project, clip plan) without the user's OK.
 
 **Project layout** (create with `project.py new doc-test/videos --title "..." --minutes 8`):
 ```
@@ -61,13 +78,13 @@ doc-test/videos/<slug>/
 
 **Per part:**
 1. **Script** (part 1 also fills in outline.md for the whole video first).
-   - Write `parts/partNN/scenes.json`, using `templates/scenes.example.json` as the template. Keep the `style` string from project.json.
+   - Write `parts/partNN/scenes.json`, using `templates/scenes.example.json` as the template. Keep the `style` string from project.json. Set each scene's `shot`, `transition`, `overlay` and `animate` following the variety rules.
    - The first scene must pick up from the previous part's closing line. The last line hands off to the next part.
    - Visually, the last scene of part N and the first scene of part N+1 should share setting and palette, so the dissolve between them feels natural.
    - Send the script to the user, then `set ... script_review`.
 2. **After the user approves the script, do the whole part in one go:**
    - Generate the voiceover (step A) and the timing (step D), then the images (step B; usually the user's extension from image_prompts.txt).
-   - Animate this part's pattern scenes (`project.py clips <project> N`) in Flow (step C). Skip step C when the list is empty (the last part). The user expects the real clips in the first version they review.
+   - Animate this part's marked scenes (`project.py clips <project> N`, the `"animate": true` scenes) in Flow (step C). The user expects the real clips in the first version they review.
    - Run `assemble.py parts/partNN` for the 1080p `partNN.mp4`.
    - Send the **full path** to the user and open it with `xdg-open`.
    - Then `set ... final_review --credits <spent>`.
@@ -116,7 +133,7 @@ The user noticed the voice changing between parts with default settings, so alwa
 3. Check the node's settings with `creative_get_flow_node` if anything sounds different.
 4. **Check the voice before using it.** Transcribe it locally with faster-whisper (free; the venv is `~/myrepo/videostst/.venv`, model `medium.en`) and compare it with the script. Flag missing or repeated words and words with low confidence. If one sentence is bad, re-generate only that sentence (cheap) and splice it in at a pause.
 
-Write years as words, e.g. "seven ninety-three", so the narrator says them correctly.
+Write years and big numbers as words, e.g. "seven ninety-three" or "three point three trillion dollars", so the narrator says them correctly. Overlays (quotes, captions) may use digits.
 
 ### B. Images (free) - the user usually makes them with their own browser extension
 Images are made from a **text prompt only** (style string + scene). No reference image is passed: gflow refuses reference images on this account, and the reference folders are only for checking results by eye.
@@ -140,7 +157,7 @@ Images are made from a **text prompt only** (style string + scene). No reference
 **Contact sheet:**
 `ffmpeg -pattern_type glob -i 'images/scene*.jpg' -vf "scale=344:192,tile=5x3" -frames:v 1 contact.jpg`
 
-### C. Animate the pattern scenes (Flow website, costs credits)
+### C. Animate the marked scenes (Flow website, costs credits)
 gflow's `i2v` is **refused** on this account: Flow serves it the "agent-only composer" (gflow issue #799). The refusal costs nothing. Use the website instead. Flow's layout changed in Nov 2026: there is no agent chat or Approve step any more.
 
 If the user also wants to make the clips themselves, write `parts/partNN/video_prompts.txt` in the same `[m.ss-m.ss] prompt` format. Use the "Animate this exact image..." text plus the scene's `motion`, one per animated scene, and list which `sceneNN.jpg` goes with each.
@@ -161,7 +178,7 @@ If the user also wants to make the clips themselves, write `parts/partNN/video_p
 7. Check credits again. The drop should be exactly 24 × the number of clips.
 
 ### D. Timing and assembly
-1. `python3 scripts/timing.py parts/partNN`: snaps scene boundaries to paragraph pauses in the voiceover. Check the printed durations. Anything under 5 s or over 11 s is a bad snap, so fix it by hand in timing.json.
+1. `python3 scripts/timing.py parts/partNN`: snaps scene boundaries to paragraph pauses in the voiceover. Check the printed durations. Scenes vary on purpose (about 3–12 s); anything outside that, or a cut in the middle of a sentence, is a bad snap, so fix it by hand in timing.json.
 2. `python3 scripts/assemble.py parts/partNN --draft` makes a review copy. Without `--draft` it makes the final render.
 3. Spot-check frames before sending.
 

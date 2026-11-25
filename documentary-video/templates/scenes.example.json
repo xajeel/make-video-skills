@@ -8,14 +8,20 @@
    "narration": "June, seven ninety-three. On a tiny island off England's northeast coast, the monks begin another quiet day of prayer.",
    "image": "A small stone monastery with a bell tower on a green island at dawn, pale sunrise, calm grey-blue sea, monks in brown robes walking on a path",
    "motion": "the sunrise glow slowly brightens, the sea ripples softly, clouds drift, slow camera push-in",
-   "flow_title": "Monks walking near stone monastery"
+   "flow_title": "Monks walking near stone monastery",
+   "animate": true,
+   "overlay": {
+    "type": "caption",
+    "text": "LINDISFARNE, 793"
+   }
   },
   {
    "n": 2,
    "narration": "This is Lindisfarne. Holy Island. Twice a day, the tide rises and cuts it off from the mainland.",
    "image": "Wide view of a tidal island with a long sandy causeway to the mainland, sea water flowing over the sand, small monastery on the island, coastline and dunes",
    "motion": "tide water slowly flows across the sandy causeway, waves roll gently, clouds drift, slow pan right",
-   "flow_title": "Medieval tapestry depicting tida"
+   "flow_title": "Medieval tapestry depicting tida",
+   "shot": "pan_right"
   },
   {
    "n": 3,
@@ -29,14 +35,21 @@
    "narration": "Here, monks spent years painting the Lindisfarne Gospels, one of the most beautiful books ever made.",
    "image": "Interior of a medieval scriptorium with stone arches, a monk at a wooden writing desk illuminating a large book with gold and colourful patterns, shelves of books, candle light",
    "motion": "the candle flame flickers, the monk's hand moves slowly painting the page, dust drifts in the light, slow push-in",
-   "flow_title": "Monk illuminating medieval book"
+   "flow_title": "Monk illuminating medieval book",
+   "shot": "push",
+   "focus": [
+    0.45,
+    0.55
+   ],
+   "animate": false
   },
   {
    "n": 5,
    "narration": "Its treasures were famous. Gold, silver, jewelled books. And the island had no walls, no soldiers, and no warning.",
    "image": "Church altar with gold chalices, silver crosses and a jewelled book cover glittering, candles, stone arches, open doorway showing the sea",
    "motion": "candle flames flicker, gold treasures glint softly, light shifts slowly, slow camera push-in",
-   "flow_title": "Medieval tapestry showing church"
+   "flow_title": "Medieval tapestry showing church",
+   "transition": "cut"
   },
   {
    "n": 6,
@@ -116,5 +129,6 @@
   3,
   5,
   8
- ]
+ ],
+ "_variety_fields": "Optional per scene: animate (true = Flow clip), shot (zoom_in|zoom_out|pan_left|pan_right|pan_up|pan_down|push|hold), focus [x,y] for push, transition (dissolve|cut|slow), overlay {type: quote|caption|route}. See SKILL.md 'Monetisation-safe variety'."
 }

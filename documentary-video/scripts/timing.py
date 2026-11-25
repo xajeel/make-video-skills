@@ -4,7 +4,7 @@ Usage: python3 timing.py <project_dir>      (needs voiceover.mp3 + scenes.json t
 Writes timing.json {"cuts": [...], "durs": [...]} and prints the durations.
 Method: detect pauses with ffmpeg silencedetect, estimate each boundary from cumulative word
 count, snap it to the nearest LONG pause (paragraph breaks are ~0.6-0.9 s, sentence breaks shorter).
-Always eyeball the printed durations: a scene of < 5 s or > 11 s usually means a wrong snap -
+Always eyeball the printed durations: scenes now vary on purpose (about 3-12 s); one outside that range usually means a wrong snap -
 fix it by hand in timing.json using the printed pause list.
 """
 import json, re, subprocess, sys, pathlib
