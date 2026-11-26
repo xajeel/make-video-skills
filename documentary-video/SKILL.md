@@ -85,12 +85,11 @@ doc-test/videos/<slug>/
 2. **After the user approves the script, do the whole part in one go:**
    - Generate the voiceover (step A) and the timing (step D), then the images (step B; usually the user's extension from image_prompts.txt).
    - Animate this part's marked scenes (`project.py clips <project> N`, the `"animate": true` scenes) in Flow (step C). The user expects the real clips in the first version they review.
-   - Run `assemble.py parts/partNN` for the 1080p `partNN.mp4`.
-   - Send the **full path** to the user and open it with `xdg-open`.
-   - Then `set ... final_review --credits <spent>`.
-   - Never send a draft made only of zooming images as "the video". `--draft` is only for a quick private check.
-3. *(The `draft_review` status is optional. Skip it unless the user asks for a cheap preview first.)*
-4. **After the user approves the final render:** `set ... final`.
+   - Run `assemble.py parts/partNN --draft`: the **draft = the actual version (images + the real Flow clips) at 720p** for review (user rule, 2026-11-26). Never a stills-only draft.
+   - Send the **full path** to the user and open it with `xdg-open`. Then `set ... draft_review --credits <spent>`.
+   - Renders: all cores, only a memory cap: `systemd-run --user --scope -p MemoryMax=2500M nice -n 19 python3 scripts/assemble.py ...`. No CPU cap (it made renders far slower than before).
+3. **After the user approves the draft:** run `assemble.py parts/partNN` for the HD 1080p `partNN.mp4`, send the path, `set ... final_review`.
+4. **After the user OKs the HD render:** `set ... final`.
 5. **When all parts are final:** run `python3 scripts/join_parts.py <project>`, which writes `final/<slug>_full.mp4`. Then spot-check each seam (sound and picture).
 6. **Then finish the package, without being asked:**
    - Make the thumbnail (step F) and save it in `<project>/thumbnail/`.
