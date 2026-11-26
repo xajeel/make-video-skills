@@ -41,7 +41,7 @@ Each part: 1920x1080, ~2:00, British narrator, a varying number of scenes (about
   6. **Evidence in tapestry style** with `overlay`. Use at least 2–3 per video:
      - `{"type":"quote","text":"<real line from the source>","cite":"<Source, date>"}`: cream text on a soft dark shade with an ochre citation. The narrator reads the line.
      - `{"type":"caption","text":"BARNSDALE, YORKSHIRE"}`: place or date caption with a rust underline.
-     - `{"type":"route","points":[[x,y],...]}`: a rust thread stitches itself along a route. Use it on a stitched map image, stills only.
+     - `{"type":"route","points":[[x,y],...]}`: a rust thread stitches itself along a route. Use it ONLY for a real journey on a stitched map (a march, a voyage), stills only. Never as a chart or "rising line" over a scene: the user rejected that as "a graph over an image" (2026-11-26).
      - Also prompt stitched documents (an embroidered charter, ballad sheet or ledger whenever a source is cited), stitched maps, stitched timelines, and split frames (legend left, record right).
   7. **Packaging:** different thumbnail concepts per video, sources in every description, the AI disclosure line, and one to two uploads a week, never a flood of look-alikes.
   - **Check before sending each part:**
