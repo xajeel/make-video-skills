@@ -2,7 +2,9 @@
 
 Usage: python3 timing.py <project_dir>      (needs voiceover.mp3 + scenes.json there)
 Writes timing.json {"cuts": [...], "durs": [...]} and prints the durations.
-Method: detect pauses with ffmpeg silencedetect, estimate each boundary from cumulative word
+Method (preferred): if words.json exists (written by vo_check.py), align the script to Whisper's word
+times and cut each scene in the middle of the gap before its first word - exact even for short scenes.
+Fallback: detect pauses with ffmpeg silencedetect, estimate each boundary from cumulative word
 count, snap it to the nearest LONG pause (paragraph breaks are ~0.6-0.9 s, sentence breaks shorter).
 Always eyeball the printed durations: scenes now vary on purpose (about 3-12 s); one outside that range usually means a wrong snap -
 fix it by hand in timing.json using the printed pause list.
@@ -24,6 +26,39 @@ W = sum(words)
 speech_start = sil[0][1] if sil and sil[0][0] < 0.1 else 0.0
 long_pauses = [((a + b) / 2, b - a) for a, b in sil if b - a >= 0.5 and a > 0.1]
 print("long pauses (mid, len):", " ".join(f"{m:.2f}({l:.2f})" for m, l in long_pauses))
+def aligned_cuts():
+    import difflib
+    wj = d / "words.json"
+    if not wj.exists():
+        return None
+    ww = json.load(open(wj))
+    norm = lambda t: re.sub(r"[^a-z0-9']", "", t.lower())
+    ref, first = [], []
+    for s in scenes:
+        first.append(len(ref))
+        ref += [x for x in (norm(t) for t in s["narration"].split()) if x]
+    hidx = [i for i, w in enumerate(ww) if norm(w["w"])]
+    heard = [norm(ww[i]["w"]) for i in hidx]
+    amap = {}
+    for op, a1, a2, b1, b2 in difflib.SequenceMatcher(a=ref, b=heard, autojunk=False).get_opcodes():
+        for k in range(a1, a2):
+            amap[k] = b1 + (k - a1) if op == "equal" else b1 + (k - a1) * (b2 - b1) // max(1, a2 - a1)
+    cuts = [0.0]
+    for f in first[1:]:
+        j = min(amap.get(f, len(heard) - 1), len(heard) - 1)
+        cur, prev = ww[hidx[j]], ww[hidx[j - 1]] if j else None
+        cuts.append(round((prev["e"] + cur["s"]) / 2 if prev else cur["s"], 2))
+    return cuts
+
+cuts = aligned_cuts()
+if cuts:
+    print("aligned to words.json")
+    cuts.append(round(total, 2))
+    durs = [round(cuts[i + 1] - cuts[i], 2) for i in range(len(scenes))]
+    json.dump({"cuts": cuts, "durs": durs}, open(d / "timing.json", "w"))
+    print("cuts:", cuts)
+    print("durs:", durs)
+    sys.exit(0)
 cuts, acc = [0.0], 0
 for w in words[:-1]:
     acc += w

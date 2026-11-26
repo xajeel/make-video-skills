@@ -131,7 +131,7 @@ The user noticed the voice changing between parts with default settings, so alwa
    - Poll `creative_get_flow_run_status` until it finishes, then download the take with `curl` from `content_url` to `parts/partNN/voiceover.mp3`.
    - Re-recording one sentence: use the same node (update `prompt` to the sentence, run, then put the full prompt back next time), so it gets the same voice and settings.
 3. Check the node's settings with `creative_get_flow_node` if anything sounds different.
-4. **Check the voice before using it.** Transcribe it locally with faster-whisper (free; the venv is `~/myrepo/videostst/.venv`, model `medium.en`) and compare it with the script. Flag missing or repeated words and words with low confidence. If one sentence is bad, re-generate only that sentence (cheap) and splice it in at a pause.
+4. **Check the voice before using it.** Run `~/myrepo/videostst/.venv/bin/python scripts/vo_check.py parts/partNN` (local faster-whisper `medium.en`, free). It compares the voiceover with the script and writes `words.json`, which `timing.py` then uses to cut scenes exactly between sentences (digits vs spelled-out numbers in the diff are harmless). Flag missing or repeated words and words with low confidence. If one sentence is bad, re-generate only that sentence (cheap) and splice it in at a pause.
 
 Write years and big numbers as words, e.g. "seven ninety-three" or "three point three trillion dollars", so the narrator says them correctly. Overlays (quotes, captions) may use digits.
 
