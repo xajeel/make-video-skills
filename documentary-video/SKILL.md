@@ -145,6 +145,7 @@ Images are made from a **text prompt only** (style string + scene). No reference
 [0.06-0.14] ...
 ```
 - The times are `m.ss` from timing.json.
+- **Modern topics (after about 1800, e.g. Nvidia):** the word "medieval" in the style makes the model put robed, hooded people, candles and castles into the scene. Add this era clause straight after the style: "Only the embroidery technique is medieval: the scene itself is set in the modern world of <decades>. Every person wears modern clothes (shirts, sweaters, jeans, suits, jackets), modern hairstyles; no robes, no hoods, no tunics, no cloaks, no medieval costume. Rooms, buildings, furniture, electric lights, computers and vehicles are modern; no candles, no castles, no wooden medieval interiors." Also write the scenes with modern things (an envelope of banknotes, an office safe, skylines with flags), not medieval metaphors (chests of gold, ledgers, scribes, castles, merchants). Before the user runs the whole file, have them test 2 prompts.
 - The user passes the file to the extension and sends back a folder, e.g. `~/Downloads/zapi-img-doc/`. It contains files named `NN_[mss-mss]_....webp`, sometimes `_1`/`_2` takes.
 - Review every image on labelled contact sheets. Look for a cloth edge or stripe, a margin, a border band, stray text, the wrong subject, or a style mismatch. Pick the best take and convert it to `parts/partNN/images/sceneNN.jpg`.
 - Regenerate only the bad ones with gflow (free), and tell the user which ones and why.
