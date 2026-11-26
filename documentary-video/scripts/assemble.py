@@ -31,7 +31,7 @@ Every scene in scenes.json may set (all optional):
              Keep them RARE and natural: 1-2 per part at most, on the strongest beat only (user rule).
   "chart": {"title": "NVIDIA MARKET VALUE", "points": [[2016, 57], [2018, 81], ...], "xticks": [2016, 2018, ...],
             "yticks": [[0, "$0"], [500, "$500B"], [1000, "$1T"]], "ymax": 1100, "note": "approximate",
-            "milestones": [{"at": [2023.4, 1000], "text": "$1 TRILLION", "word": "trillion"}]}
+            "milestones": [{"at": [2023.4, 1000], "text": "$1 TRILLION", "word": "trillion"}], "dark": true}
                                   -> replaces the image with a plain linen cloth and a stitched line chart: axes and
                                      labels in the caption serif, the rust line stitches itself on until the first
                                      milestone word, then each milestone pops a dot + tag on its word. Use real data.
@@ -205,7 +205,7 @@ def draw_marks(img, marks, tsec):
             if goal <= 0: break
             stitch(img, p, min(1.0, goal / L), col, w=w, st=iw * 0.016, gap=iw * 0.007); goal -= L
 
-def linen_bg(w, h, seed=7):
+def linen_bg(w, h, seed=7, base=(226, 214, 190)):
     """Plain woven linen cloth (no numpy): noise + warp/weft threads, light vignette."""
     import random
     rnd = random.Random(seed)
@@ -214,7 +214,6 @@ def linen_bg(w, h, seed=7):
     hz = Image.new("L", (w, h), 128); dh = ImageDraw.Draw(hz)
     for y in range(0, h, 3): dh.line([(0, y), (w, y)], fill=128 + rnd.randint(-22, 22))
     tex = Image.blend(Image.blend(v, hz, 0.5), Image.effect_noise((w, h), 26).convert("L"), 0.35).filter(ImageFilter.GaussianBlur(0.7))
-    base = (226, 214, 190)
     dark = Image.new("RGB", (w, h), tuple(int(c * 0.86) for c in base))
     light = Image.new("RGB", (w, h), tuple(min(255, int(c * 1.06)) for c in base))
     out = Image.composite(light, dark, tex)
@@ -223,13 +222,14 @@ def linen_bg(w, h, seed=7):
 
 def chart_setup(ch, w=1920, h=1080):
     """Static chart cloth + a mapper from data to pixels + the smooth line polyline (pixels)."""
-    img = linen_bg(w, h); dr = ImageDraw.Draw(img)
+    dk = ch.get("dark", False)
+    img = linen_bg(w, h, base=(40, 36, 33) if dk else (226, 214, 190)); dr = ImageDraw.Draw(img)
     L, R, T, B = w * 0.13, w * 0.88, h * 0.24, h * 0.82
     xs = [p[0] for p in ch["points"]] + list(ch.get("xticks", []))
     x0, x1 = min(xs), max(xs); ymax = ch.get("ymax") or max(p[1] for p in ch["points"]) * 1.1
     M = lambda x, y: (L + (x - x0) / (x1 - x0) * (R - L), B - y / ymax * (B - T))
     ft, fl, fn = font("NotoSerif-SemiBold.ttf", int(h * 0.062)), font("NotoSerif-Regular.ttf", int(h * 0.032)), font("NotoSerif-Italic.ttf", int(h * 0.024))
-    INKS, MUTE = (52, 40, 30), (150, 132, 108)
+    INKS, MUTE = ((236, 226, 204), (120, 108, 92)) if dk else ((52, 40, 30), (150, 132, 108))
     dr.text((w * 0.07, h * 0.07), ch.get("title", ""), font=ft, fill=INKS)
     tb = dr.textbbox((w * 0.07, h * 0.07), ch.get("title", ""), font=ft)
     stitch(img, [(tb[0], tb[3] + h * 0.018), (tb[2], tb[3] + h * 0.018)], 1.0, RUST, w=max(4, int(w * 0.004)), st=w * 0.012, gap=w * 0.005)
