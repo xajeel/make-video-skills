@@ -388,7 +388,9 @@ for i, dur in enumerate(durs):
     clip, img, out = d / f"clips/scene{n:02d}.mp4", d / f"images/scene{n:02d}.jpg", seg / f"s{n:02d}.mp4"
     frames = int(round(L * FPS))
     if clip.exists():
-        vf = f"setpts={L / probe(clip):.4f}*PTS,scale={W}:{H}:flags=lanczos,fps={FPS},format=yuv420p"
+        # tpad clones the last frame so the segment is never a frame short after speed-fitting: a short segment
+        # makes the next xfade end the whole picture early (part01 lost its last 15 s that way, 2026-11-26)
+        vf = f"setpts={L / probe(clip):.4f}*PTS,scale={W}:{H}:flags=lanczos,fps={FPS},tpad=stop_mode=clone:stop_duration=2,format=yuv420p"
         layer = overlay_png(sc.get("overlay"))
         if layer is not None:
             png = seg / f"ov{n:02d}.png"; layer.save(png)
@@ -422,4 +424,8 @@ subprocess.run(["ffmpeg", "-v", "error", "-y", *ins, "-i", str(d / "voiceover.mp
                 "-map", prev, "-map", "[a]", "-r", str(FPS), "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-t", f"{total:.3f}",
                 "-movflags", "+faststart", str(d / out_name)], check=True)
-print("wrote", d / out_name, f"({total:.2f}s)")
+vdur = float(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration",
+                             "-of", "csv=p=0", str(d / out_name)], capture_output=True, text=True).stdout or 0)
+if vdur < total - 0.2:
+    raise SystemExit(f"BROKEN RENDER: picture is {vdur:.2f}s but the part is {total:.2f}s - a segment is too short")
+print("wrote", d / out_name, f"({total:.2f}s, picture {vdur:.2f}s)")
