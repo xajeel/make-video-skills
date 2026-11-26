@@ -17,6 +17,14 @@ Every scene in scenes.json may set (all optional):
              {"type": "caption", "text": "SANTA CLARA, 1993"}              (place / date)
              {"type": "route",   "points": [[x, y], ...]}                   (rust thread stitches itself
                                                                              along the path; stills only)
+  "marks": [ ... ]                -> hand-made B-roll style annotations, stitched in thread (stills only):
+             {"type": "circle", "at": [x, y], "r": 0.07, "word": "graveyard"}
+             {"type": "arrow",  "from": [x, y], "to": [x, y], "word": "President"}
+             optional "color": "rust" (default) | "ochre" | "cream"; "t": seconds into the scene
+             instead of "word". "word" = the mark stitches itself on as the narrator says that word
+             (first match inside the scene, from words.json). Circles wobble and overshoot like a
+             hand-drawn loop; arrows curve. Coordinates 0-1 of the image; r is a fraction of width.
+             Keep them RARE and natural: 1-2 per part at most, on the strongest beat only (user rule).
 Overlays are drawn in the tapestry palette (cream text, rust/ochre accents, soft dark shade).
 
 - Animated scenes: the Flow clip, speed-fitted to that scene's narration.
@@ -92,25 +100,106 @@ def overlay_png(ov):
         dr.line([(x, box[3] + 10 * s), (box[2], box[3] + 10 * s)], fill=(*RUST, 255), width=max(3, int(5 * s)))
     return layer
 
-def draw_route(img, pts, frac):
-    """Rust 'thread' stitched along pts (0-1 coords) up to fraction frac of its length, as dashes."""
-    iw, ih = img.size; P = [(x * iw, y * ih) for x, y in pts]
+def stitch(img, P, frac, color=RUST, w=None, st=None, gap=None):
+    """Thread stitched along pixel polyline P up to fraction frac of its length, as running-stitch dashes
+    (shadow + wool + a lighter twist highlight). Returns the walked length."""
+    iw = img.size[0]; dr = ImageDraw.Draw(img)
+    w = w or max(6, int(iw * 0.010)); st = st or iw * 0.020; gap = gap or iw * 0.010
+    hi = tuple(min(255, int(c * 1.35 + 25)) for c in color)
     seglen = [((P[i+1][0]-P[i][0])**2 + (P[i+1][1]-P[i][1])**2) ** 0.5 for i in range(len(P) - 1)]
-    total = sum(seglen) or 1; goal = total * frac; dr = ImageDraw.Draw(img)
-    st, gap, w = iw * 0.020, iw * 0.010, max(6, int(iw * 0.010)); walked = 0.0
+    total = sum(seglen) or 1; goal = total * frac; walked, pos = 0.0, 0.0   # pos carries across segments
+    dashes, cur, guard = [], [], 0
     for i, L in enumerate(seglen):
-        pos = 0.0
-        while pos < L and walked + pos < goal:
-            e = min(pos + st, L, goal - walked)
-            ax, ay = P[i][0] + (P[i+1][0]-P[i][0]) * pos / L, P[i][1] + (P[i+1][1]-P[i][1]) * pos / L
-            bx, by = P[i][0] + (P[i+1][0]-P[i][0]) * e / L, P[i][1] + (P[i+1][1]-P[i][1]) * e / L
-            dr.line([(ax + 2, ay + 3), (bx + 2, by + 3)], fill=INK, width=w)     # thread shadow
-            dr.line([(ax, ay), (bx, by)], fill=RUST, width=w)
-            pos = e + gap
+        if L == 0: continue
+        a = 0.0; lim = min(L, goal - walked)                # stop at the end of this segment or at the goal
+        while lim - a > 1e-6:                              # tolerance: exact float compare looped forever (OOM)
+            guard += 1
+            if guard > 200000: raise SystemExit("stitch(): runaway loop")   # never eat the machine's RAM again
+            if pos < st - 1e-6:                            # inside a dash
+                e = min(a + (st - pos), lim)
+                cur.append((P[i][0] + (P[i+1][0]-P[i][0]) * a / L, P[i][1] + (P[i+1][1]-P[i][1]) * a / L))
+                cur.append((P[i][0] + (P[i+1][0]-P[i][0]) * e / L, P[i][1] + (P[i+1][1]-P[i][1]) * e / L))
+                pos += e - a; a = e
+                if pos >= st - 1e-6: dashes.append(cur); cur = []; pos = st
+            else:                                          # inside a gap
+                e = min(a + (st + gap - pos), lim); pos += e - a; a = e
+                if pos >= st + gap - 1e-6: pos = 0.0
         walked += L
         if walked >= goal: break
+    if cur: dashes.append(cur)
+    for dsh in dashes:
+        dr.line([(x + w * 0.3, y + w * 0.45) for x, y in dsh], fill=INK, width=w, joint="curve")   # shadow
+    for dsh in dashes:
+        dr.line(dsh, fill=color, width=w, joint="curve")
+        dr.line([(x - w * 0.18, y - w * 0.18) for x, y in dsh], fill=hi, width=max(1, w // 3), joint="curve")
+    return total
+
+def draw_route(img, pts, frac):
+    """Rust 'thread' stitched along pts (0-1 coords) up to fraction frac of its length."""
+    iw, ih = img.size; P = [(x * iw, y * ih) for x, y in pts]
+    stitch(img, P, frac)
     if frac >= 0.999:
+        dr = ImageDraw.Draw(img); w = max(6, int(iw * 0.010))
         x, y = P[-1]; r = w * 1.6; dr.ellipse([x - r, y - r, x + r, y + r], fill=RUST, outline=INK, width=2)
+
+COLORS = {"rust": RUST, "ochre": OCHRE, "cream": CREAM}
+
+def mark_paths(m, iw, ih, seed):
+    """Pixel polylines for one mark (drawn in order)."""
+    import math, random
+    rnd = random.Random(seed)
+    if m["type"] == "circle":
+        cx, cy = m["at"][0] * iw, m["at"][1] * ih; r = m.get("r", 0.07) * iw
+        a0 = rnd.uniform(-2.6, -1.6); turn = rnd.uniform(1.08, 1.16); ph = rnd.uniform(0, 6.3)
+        ax, ay = rnd.uniform(1.08, 1.2), rnd.uniform(0.9, 1.0)          # a little wider than tall, like a quick loop
+        pts = []
+        for k in range(97):
+            u = k / 96; th = a0 + u * turn * 2 * math.pi
+            rr = r * (0.95 + 0.10 * u + 0.035 * math.sin(2 * th + ph))   # spirals outward slightly: overshoot
+            pts.append((cx + rr * ax * math.cos(th), cy + rr * ay * math.sin(th)))
+        return [pts]
+    (x0, y0), (x1, y1) = [(p[0] * iw, p[1] * ih) for p in (m["from"], m["to"])]
+    dx, dy = x1 - x0, y1 - y0; L = (dx * dx + dy * dy) ** 0.5 or 1
+    bend = rnd.choice((-1, 1)) * rnd.uniform(0.10, 0.18) * L
+    mx, my = (x0 + x1) / 2 - dy / L * bend, (y0 + y1) / 2 + dx / L * bend
+    shaft = [((1-u)**2 * x0 + 2*(1-u)*u * mx + u*u * x1, (1-u)**2 * y0 + 2*(1-u)*u * my + u*u * y1)
+             for u in (k / 40 for k in range(41))]
+    tx, ty = x1 - shaft[-4][0], y1 - shaft[-4][1]; tl = (tx * tx + ty * ty) ** 0.5 or 1
+    tx, ty = tx / tl, ty / tl; hl = max(L * 0.22, iw * 0.035)
+    heads = []
+    for s in (1, -1):
+        c, sn = math.cos(2.6 * s), math.sin(2.6 * s)                       # ~150 deg back from the tip
+        heads.append([(x1, y1), (x1 + hl * (tx * c - ty * sn), y1 + hl * (tx * sn + ty * c))])
+    return [shaft] + heads
+
+def draw_marks(img, marks, tsec):
+    """Stitch each mark on over ~0.9 s starting at its time m['_t']."""
+    iw, ih = img.size
+    for j, m in enumerate(marks):
+        frac = (tsec - m["_t"]) / (0.9 if m["type"] == "circle" else 0.8)
+        if frac <= 0: continue
+        frac = min(1.0, frac); frac = frac * frac * (3 - 2 * frac)
+        paths = m["_paths"]; lens = [sum(((p[i+1][0]-p[i][0])**2 + (p[i+1][1]-p[i][1])**2) ** 0.5
+                                         for i in range(len(p) - 1)) for p in paths]
+        goal = sum(lens) * frac; col = COLORS.get(m.get("color", "rust"), RUST)
+        w = max(5, int(iw * 0.0075))
+        for p, L in zip(paths, lens):
+            if goal <= 0: break
+            stitch(img, p, min(1.0, goal / L), col, w=w, st=iw * 0.016, gap=iw * 0.007); goal -= L
+
+WORDS = json.load(open(d / "words.json")) if (d / "words.json").exists() else []
+CUTS = t.get("cuts") or [sum(t["durs"][:i]) for i in range(N + 1)]
+def norm(x): return "".join(c for c in x.lower() if c.isalnum() or c == "'")
+
+def mark_times(i, marks):
+    """Seconds into scene i at which each mark starts stitching."""
+    for m in marks:
+        tt = m.get("t", 0.8)
+        if m.get("word"):
+            hit = [w for w in WORDS if norm(w["w"]) == norm(m["word"]) and CUTS[i] - 0.05 <= w["s"] < CUTS[i + 1]]
+            if hit: tt = hit[0]["s"] - CUTS[i] + (LEAD if i == 0 else 0) - 0.1
+            else: print(f"  ! scene {i + 1}: word {m['word']!r} not heard in this scene, using t={tt}")
+        m["_t"] = max(0.2, tt)
 
 def render_still(sc, img_path, out, frames, shot):
     """Still with a smooth sub-pixel camera move (no jitter) + optional overlay."""
@@ -120,6 +209,10 @@ def render_still(sc, img_path, out, frames, shot):
     fx, fy = sc.get("focus", [0.5, 0.5])
     ov = sc.get("overlay") or {}
     layer = overlay_png(ov); route = ov.get("points") if ov.get("type") == "route" else None
+    marks = [dict(m) for m in sc.get("marks", [])]
+    if marks:
+        mark_times(sc["_i"], marks)
+        for j, m in enumerate(marks): m["_paths"] = mark_paths(m, iw, ih, seed=sc["_i"] * 31 + j)
     p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                           "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-crf", str(crf), "-preset", preset,
                           "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE)
@@ -140,8 +233,10 @@ def render_still(sc, img_path, out, frames, shot):
         w, h = cw / z, ch / z
         cx = min(max(cx, w / 2), iw - w / 2); cy = min(max(cy, h / 2), ih - h / 2)
         base = src
-        if route:
-            base = src.copy(); draw_route(base, route, min(1.0, max(0.0, (u - 0.08) / 0.75)))
+        if route or marks:
+            base = src.copy()
+            if route: draw_route(base, route, min(1.0, max(0.0, (u - 0.08) / 0.75)))
+            if marks: draw_marks(base, marks, f / FPS)
         fr = base.transform((W, H), Image.Transform.EXTENT, (cx - w/2, cy - h/2, cx + w/2, cy + h/2),
                             resample=Image.Resampling.BICUBIC)
         if layer is not None:
@@ -161,7 +256,7 @@ def probe(f):
 
 alt = 0
 for i, dur in enumerate(durs):
-    n = i + 1; sc = scenes[i]
+    n = i + 1; sc = scenes[i]; sc["_i"] = i
     L = dur + (xin[i + 1] if n < N else 0)
     clip, img, out = d / f"clips/scene{n:02d}.mp4", d / f"images/scene{n:02d}.jpg", seg / f"s{n:02d}.mp4"
     frames = int(round(L * FPS))
@@ -177,14 +272,15 @@ for i, dur in enumerate(durs):
             cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(clip), "-vf", vf, "-frames:v", str(frames), "-an",
                    "-c:v", "libx264", "-crf", str(crf), "-preset", preset, str(out)]
         subprocess.run(cmd, check=True)
-        print(f"scene {n}: flow clip {L:.2f}s", flush=True)
+        print(f"scene {n}: flow clip {L:.2f}s{'  (marks ignored: stills only)' if sc.get('marks') else ''}", flush=True)
     else:
         shot = sc.get("shot")
         if not shot:
             shot = "zoom_in" if alt % 2 == 0 else "zoom_out"; alt += 1
         render_still(sc, img, out, frames, shot)
         ov = (sc.get("overlay") or {}).get("type")
-        print(f"scene {n}: image + {shot}{' + ' + ov if ov else ''} {L:.2f}s", flush=True)
+        mk = f" + {len(sc['marks'])} mark(s)" if sc.get("marks") else ""
+        print(f"scene {n}: image + {shot}{' + ' + ov if ov else ''}{mk} {L:.2f}s", flush=True)
 
 ins = []
 for n in range(1, N + 1): ins += ["-i", str(seg / f"s{n:02d}.mp4")]
