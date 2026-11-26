@@ -20,6 +20,10 @@ Every scene in scenes.json may set (all optional):
   "marks": [ ... ]                -> hand-made B-roll style annotations, stitched in thread (stills only):
              {"type": "circle", "at": [x, y], "r": 0.07, "word": "graveyard"}
              {"type": "arrow",  "from": [x, y], "to": [x, y], "word": "President"}
+             {"type": "label",  "text": "Jensen Huang", "at": [x, y], "tag": [x, y], "from": [x, y], "word": "Jensen"}
+                 -> a cream name tag pops up at "tag" with a short stitched arrow down to "at" (a head)
+             {"type": "card",   "text": "Why couldn't Nvidia let him go?", "word": "why"}
+                 -> the frame dims and the line comes up big and centred (fixed on screen, not on the image)
              optional "color": "rust" (default) | "ochre" | "cream"; "t": seconds into the scene
              instead of "word". "word" = the mark stitches itself on as the narrator says that word
              (first match inside the scene, from words.json). Circles wobble and overshoot like a
@@ -158,14 +162,20 @@ def mark_paths(m, iw, ih, seed):
             rr = r * (0.95 + 0.10 * u + 0.035 * math.sin(2 * th + ph))   # spirals outward slightly: overshoot
             pts.append((cx + rr * ax * math.cos(th), cy + rr * ay * math.sin(th)))
         return [pts]
-    (x0, y0), (x1, y1) = [(p[0] * iw, p[1] * ih) for p in (m["from"], m["to"])]
+    if m["type"] == "card": return []
+    if m["type"] == "label":
+        tag = m.get("tag", [m["at"][0], m["at"][1] - 0.09])
+        frm, to = m.get("from", [tag[0], tag[1] + 0.03]), m["at"]
+    else:
+        frm, to = m["from"], m["to"]
+    (x0, y0), (x1, y1) = [(p[0] * iw, p[1] * ih) for p in (frm, to)]
     dx, dy = x1 - x0, y1 - y0; L = (dx * dx + dy * dy) ** 0.5 or 1
-    bend = rnd.choice((-1, 1)) * rnd.uniform(0.10, 0.18) * L
+    bend = rnd.choice((-1, 1)) * rnd.uniform(0.10, 0.18) * L * (0.5 if m["type"] == "label" else 1)
     mx, my = (x0 + x1) / 2 - dy / L * bend, (y0 + y1) / 2 + dx / L * bend
     shaft = [((1-u)**2 * x0 + 2*(1-u)*u * mx + u*u * x1, (1-u)**2 * y0 + 2*(1-u)*u * my + u*u * y1)
              for u in (k / 40 for k in range(41))]
     tx, ty = x1 - shaft[-4][0], y1 - shaft[-4][1]; tl = (tx * tx + ty * ty) ** 0.5 or 1
-    tx, ty = tx / tl, ty / tl; hl = max(L * 0.22, iw * 0.035)
+    tx, ty = tx / tl, ty / tl; hl = max(L * 0.22, iw * (0.022 if m["type"] == "label" else 0.035))
     heads = []
     for s in (1, -1):
         c, sn = math.cos(2.6 * s), math.sin(2.6 * s)                       # ~150 deg back from the tip
@@ -176,8 +186,10 @@ def draw_marks(img, marks, tsec):
     """Stitch each mark on over ~0.9 s starting at its time m['_t']."""
     iw, ih = img.size
     for j, m in enumerate(marks):
-        frac = (tsec - m["_t"]) / (0.9 if m["type"] == "circle" else 0.8)
+        if m["type"] == "card": continue
+        frac = (tsec - m["_t"]) / (0.9 if m["type"] == "circle" else 0.5 if m["type"] == "label" else 0.8)
         if frac <= 0: continue
+        if m["type"] == "label": paste_tag(img, m, min(1.0, (tsec - m["_t"]) / 0.3))
         frac = min(1.0, frac); frac = frac * frac * (3 - 2 * frac)
         paths = m["_paths"]; lens = [sum(((p[i+1][0]-p[i][0])**2 + (p[i+1][1]-p[i][1])**2) ** 0.5
                                          for i in range(len(p) - 1)) for p in paths]
@@ -186,6 +198,41 @@ def draw_marks(img, marks, tsec):
         for p, L in zip(paths, lens):
             if goal <= 0: break
             stitch(img, p, min(1.0, goal / L), col, w=w, st=iw * 0.016, gap=iw * 0.007); goal -= L
+
+def tag_png(m, iw, ih):
+    """Cream serif name tag on a soft dark plate (tapestry caption style), RGBA, plus its top-left in px."""
+    f = font("NotoSerif-SemiBold.ttf", max(14, int(iw * 0.024)))
+    tmp = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    b = tmp.textbbox((0, 0), m["text"], font=f); tw_, th_ = b[2] - b[0], b[3] - b[1]
+    px, py = int(iw * 0.012), int(iw * 0.008); bw, bh = tw_ + 2 * px, th_ + 2 * py
+    im = Image.new("RGBA", (bw + 24, bh + 24), (0, 0, 0, 0))
+    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rounded_rectangle([12, 12, 12 + bw, 12 + bh], radius=bh // 3, fill=(*INK, 175))
+    im = Image.alpha_composite(im, sh.filter(ImageFilter.GaussianBlur(4)))
+    dr = ImageDraw.Draw(im)
+    dr.text((12 + px - b[0], 12 + py - b[1]), m["text"], font=f, fill=(*CREAM, 255), stroke_width=2, stroke_fill=(*INK, 255))
+    dr.line([(12 + px, 12 + bh - 4), (12 + bw - px, 12 + bh - 4)], fill=(*RUST, 255), width=max(2, int(iw * 0.002)))
+    tag = m.get("tag", [m["at"][0], m["at"][1] - 0.09])
+    return im, (int(tag[0] * iw - im.size[0] / 2), int(tag[1] * ih - im.size[1] / 2))
+
+def paste_tag(img, m, k):
+    if k <= 0: return
+    if "_tag" not in m: m["_tag"] = tag_png(m, *img.size)
+    im, (x, y) = m["_tag"]; k = min(1.0, k)
+    al = im.split()[3].point(lambda v: int(v * k))
+    img.paste(im.convert("RGB"), (x, y + int((1 - k) * 8)), al)
+
+def card_layer(m):
+    """Frame-space layer for a "card" mark: dims the picture and shows one big centred line."""
+    lay = Image.new("RGBA", (W, H), (*INK, 140)); dr = ImageDraw.Draw(lay); s = W / 1920
+    f = font("NotoSerif-SemiBold.ttf", int(84 * s))
+    lines = textwrap.wrap(m["text"], 36); lh = int(110 * s); y = H / 2 - len(lines) * lh / 2
+    for ln_ in lines:
+        dr.text((W / 2, y), ln_, font=f, fill=(*CREAM, 255), anchor="mt", stroke_width=max(2, int(3 * s)), stroke_fill=(*INK, 255))
+        y += lh
+    bw = dr.textlength(max(lines, key=len), font=f)
+    dr.line([(W / 2 - bw / 2, y + 8 * s), (W / 2 + bw / 2, y + 8 * s)], fill=(*RUST, 255), width=max(3, int(6 * s)))
+    return lay
 
 WORDS = json.load(open(d / "words.json")) if (d / "words.json").exists() else []
 CUTS = t.get("cuts") or [sum(t["durs"][:i]) for i in range(N + 1)]
@@ -213,6 +260,8 @@ def render_still(sc, img_path, out, frames, shot):
     if marks:
         mark_times(sc["_i"], marks)
         for j, m in enumerate(marks): m["_paths"] = mark_paths(m, iw, ih, seed=sc["_i"] * 31 + j)
+    cards = [(m["_t"], card_layer(m)) for m in marks if m["type"] == "card"]
+    marks = [m for m in marks if m["type"] != "card"]
     p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                           "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-crf", str(crf), "-preset", preset,
                           "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE)
@@ -246,6 +295,11 @@ def render_still(sc, img_path, out, frames, shot):
                 if alpha < 1:
                     r, g, b, al = layer.split(); al = al.point(lambda v: int(v * alpha)); lay = Image.merge("RGBA", (r, g, b, al))
                 fr = Image.alpha_composite(fr.convert("RGBA"), lay).convert("RGB")
+        for t0, cl in cards:
+            k = min(1.0, max(0.0, (f / FPS - t0) / 0.45))
+            if k > 0:
+                r_, g_, b_, a_ = cl.split(); a_ = a_.point(lambda v: int(v * k))
+                fr = Image.alpha_composite(fr.convert("RGBA"), Image.merge("RGBA", (r_, g_, b_, a_))).convert("RGB")
         p.stdin.write(fr.tobytes())
     p.stdin.close(); p.wait()
     if p.returncode: raise SystemExit(f"ffmpeg failed for {img_path}")
