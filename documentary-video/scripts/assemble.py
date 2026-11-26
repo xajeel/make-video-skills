@@ -29,6 +29,12 @@ Every scene in scenes.json may set (all optional):
              (first match inside the scene, from words.json). Circles wobble and overshoot like a
              hand-drawn loop; arrows curve. Coordinates 0-1 of the image; r is a fraction of width.
              Keep them RARE and natural: 1-2 per part at most, on the strongest beat only (user rule).
+  "chart": {"title": "NVIDIA MARKET VALUE", "points": [[2016, 57], [2018, 81], ...], "xticks": [2016, 2018, ...],
+            "yticks": [[0, "$0"], [500, "$500B"], [1000, "$1T"]], "ymax": 1100, "note": "approximate",
+            "milestones": [{"at": [2023.4, 1000], "text": "$1 TRILLION", "word": "trillion"}]}
+                                  -> replaces the image with a plain linen cloth and a stitched line chart: axes and
+                                     labels in the caption serif, the rust line stitches itself on until the first
+                                     milestone word, then each milestone pops a dot + tag on its word. Use real data.
 Overlays are drawn in the tapestry palette (cream text, rust/ochre accents, soft dark shade).
 
 - Animated scenes: the Flow clip, speed-fitted to that scene's narration.
@@ -199,6 +205,53 @@ def draw_marks(img, marks, tsec):
             if goal <= 0: break
             stitch(img, p, min(1.0, goal / L), col, w=w, st=iw * 0.016, gap=iw * 0.007); goal -= L
 
+def linen_bg(w, h, seed=7):
+    """Plain woven linen cloth (no numpy): noise + warp/weft threads, light vignette."""
+    import random
+    rnd = random.Random(seed)
+    v = Image.new("L", (w, h), 128); dv = ImageDraw.Draw(v)
+    for x in range(0, w, 3): dv.line([(x, 0), (x, h)], fill=128 + rnd.randint(-22, 22))
+    hz = Image.new("L", (w, h), 128); dh = ImageDraw.Draw(hz)
+    for y in range(0, h, 3): dh.line([(0, y), (w, y)], fill=128 + rnd.randint(-22, 22))
+    tex = Image.blend(Image.blend(v, hz, 0.5), Image.effect_noise((w, h), 26).convert("L"), 0.35).filter(ImageFilter.GaussianBlur(0.7))
+    base = (226, 214, 190)
+    dark = Image.new("RGB", (w, h), tuple(int(c * 0.86) for c in base))
+    light = Image.new("RGB", (w, h), tuple(min(255, int(c * 1.06)) for c in base))
+    out = Image.composite(light, dark, tex)
+    vig = Image.new("L", (w, h), 0); ImageDraw.Draw(vig).ellipse([-w * 0.25, -h * 0.35, w * 1.25, h * 1.35], fill=255)
+    return Image.composite(out, Image.new("RGB", (w, h), tuple(int(c * 0.78) for c in base)), vig.filter(ImageFilter.GaussianBlur(w * 0.08)))
+
+def chart_setup(ch, w=1920, h=1080):
+    """Static chart cloth + a mapper from data to pixels + the smooth line polyline (pixels)."""
+    img = linen_bg(w, h); dr = ImageDraw.Draw(img)
+    L, R, T, B = w * 0.13, w * 0.88, h * 0.24, h * 0.82
+    xs = [p[0] for p in ch["points"]] + list(ch.get("xticks", []))
+    x0, x1 = min(xs), max(xs); ymax = ch.get("ymax") or max(p[1] for p in ch["points"]) * 1.1
+    M = lambda x, y: (L + (x - x0) / (x1 - x0) * (R - L), B - y / ymax * (B - T))
+    ft, fl, fn = font("NotoSerif-SemiBold.ttf", int(h * 0.062)), font("NotoSerif-Regular.ttf", int(h * 0.032)), font("NotoSerif-Italic.ttf", int(h * 0.024))
+    INKS, MUTE = (52, 40, 30), (150, 132, 108)
+    dr.text((w * 0.07, h * 0.07), ch.get("title", ""), font=ft, fill=INKS)
+    tb = dr.textbbox((w * 0.07, h * 0.07), ch.get("title", ""), font=ft)
+    stitch(img, [(tb[0], tb[3] + h * 0.018), (tb[2], tb[3] + h * 0.018)], 1.0, RUST, w=max(4, int(w * 0.004)), st=w * 0.012, gap=w * 0.005)
+    for yv, lab in ch.get("yticks", []):
+        _, yy = M(x0, yv)
+        if yv: stitch(img, [(L, yy), (R, yy)], 1.0, MUTE, w=max(2, int(w * 0.0016)), st=w * 0.008, gap=w * 0.008)
+        dr.text((L - w * 0.015, yy), lab, font=fl, fill=INKS, anchor="rm")
+    for xv in ch.get("xticks", []):
+        xx, _ = M(xv, 0); dr.text((xx, B + h * 0.025), str(xv), font=fl, fill=INKS, anchor="mt")
+        stitch(img, [(xx, B), (xx, B + h * 0.012)], 1.0, INKS, w=max(3, int(w * 0.002)), st=w * 0.02, gap=1)
+    stitch(img, [(L, T - h * 0.03), (L, B), (R + w * 0.02, B)], 1.0, INKS, w=max(4, int(w * 0.003)), st=w * 0.014, gap=w * 0.004)
+    if ch.get("note"): dr.text((R + w * 0.02, h * 0.93), ch["note"], font=fn, fill=MUTE, anchor="rm")
+    P = [M(*p) for p in ch["points"]]; line = []
+    for i in range(len(P) - 1):                       # Catmull-Rom: a smooth hand-stitched curve through the data
+        p0, p1, p2, p3 = P[max(i - 1, 0)], P[i], P[i + 1], P[min(i + 2, len(P) - 1)]
+        for k in range(16):
+            t_ = k / 16
+            line.append(tuple(0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t_ + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t_ ** 2
+                                     + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t_ ** 3) for j in (0, 1)))
+    line.append(P[-1])
+    return img, M, line
+
 def tag_png(m, iw, ih):
     """Cream serif name tag on a soft dark plate (tapestry caption style), RGBA, plus its top-left in px."""
     f = font("NotoSerif-SemiBold.ttf", max(14, int(iw * 0.024)))
@@ -250,13 +303,24 @@ def mark_times(i, marks):
 
 def render_still(sc, img_path, out, frames, shot):
     """Still with a smooth sub-pixel camera move (no jitter) + optional overlay."""
-    src = Image.open(img_path).convert("RGB")
+    chart = sc.get("chart")
+    if chart:
+        src, cmap, cline = chart_setup(chart)
+    else:
+        src = Image.open(img_path).convert("RGB")
     iw, ih = src.size; ar = W / H
     cw, ch = (ih * ar, ih) if iw / ih > ar else (iw, iw / ar)
     fx, fy = sc.get("focus", [0.5, 0.5])
     ov = sc.get("overlay") or {}
     layer = overlay_png(ov); route = ov.get("points") if ov.get("type") == "route" else None
     marks = [dict(m) for m in sc.get("marks", [])]
+    if chart:
+        cw_, ch_ = src.size
+        for ms in chart.get("milestones", []):
+            px, py = cmap(*ms["at"])
+            marks.append({"type": "label", "text": ms["text"], "word": ms.get("word"), "t": ms.get("t", 3.0),
+                          "at": [px / cw_ - 0.006, py / ch_ - 0.012], "from": [px / cw_ - 0.05, py / ch_ - 0.05],
+                          "tag": [px / cw_ - 0.12, py / ch_ - 0.085], "_dot": (px, py)})
     if marks:
         mark_times(sc["_i"], marks)
         for j, m in enumerate(marks): m["_paths"] = mark_paths(m, iw, ih, seed=sc["_i"] * 31 + j)
@@ -282,8 +346,17 @@ def render_still(sc, img_path, out, frames, shot):
         w, h = cw / z, ch / z
         cx = min(max(cx, w / 2), iw - w / 2); cy = min(max(cy, h / 2), ih - h / 2)
         base = src
-        if route or marks:
+        if route or marks or chart:
             base = src.copy()
+            if chart:
+                ends = [m["_t"] for m in marks if "_dot" in m] or [frames / FPS * 0.8]
+                k = min(1.0, max(0.0, (f / FPS - 0.5) / max(0.5, ends[0] - 0.5)))
+                stitch(base, cline, k * (2 - k), RUST, w=max(6, int(base.size[0] * 0.0055)), st=base.size[0] * 0.014, gap=base.size[0] * 0.005)
+                bd = ImageDraw.Draw(base)
+                for m in marks:
+                    if "_dot" in m and f / FPS >= m["_t"]:
+                        x_, y_ = m["_dot"]; r_ = base.size[0] * 0.009
+                        bd.ellipse([x_ - r_, y_ - r_, x_ + r_, y_ + r_], fill=RUST, outline=INK, width=3)
             if route: draw_route(base, route, min(1.0, max(0.0, (u - 0.08) / 0.75)))
             if marks: draw_marks(base, marks, f / FPS)
         fr = base.transform((W, H), Image.Transform.EXTENT, (cx - w/2, cy - h/2, cx + w/2, cy + h/2),
